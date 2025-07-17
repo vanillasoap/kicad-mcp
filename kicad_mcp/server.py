@@ -6,7 +6,7 @@ import os
 import signal
 import logging
 from typing import Callable
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 # Import resource handlers
 from kicad_mcp.resources.projects import register_project_resources
@@ -186,3 +186,44 @@ def create_server() -> FastMCP:
     
     logging.info(f"Server initialization complete")
     return mcp
+
+
+def setup_signal_handlers() -> None:
+    """Setup signal handlers for graceful shutdown."""
+    # Signal handlers are set up in register_signal_handlers
+    pass
+
+
+def cleanup_handler() -> None:
+    """Handle cleanup during shutdown."""
+    run_cleanup_handlers()
+
+
+def setup_logging() -> None:
+    """Configure logging for the server."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+
+
+async def main() -> None:
+    """Main server entry point."""
+    setup_logging()
+    logging.info("Starting KiCad MCP server...")
+    
+    server = create_server()
+    
+    try:
+        await server.run()
+    except KeyboardInterrupt:
+        logging.info("Server interrupted by user")
+    except Exception as e:
+        logging.error(f"Server error: {e}")
+    finally:
+        logging.info("Server shutdown complete")
+
+
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())
