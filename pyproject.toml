@@ -17,6 +17,22 @@ dependencies = [
     "fastmcp>=0.1.0",
     "pandas>=2.0.0",
 ]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Intended Audience :: Developers",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Topic :: Scientific/Engineering :: Electronic Design Automation (EDA)",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/lamaalrajih/kicad-mcp"
+"Bug Tracker" = "https://github.com/lamaalrajih/kicad-mcp/issues"
+"Documentation" = "https://github.com/lamaalrajih/kicad-mcp#readme"
 
 [project.scripts]
 kicad-mcp = "kicad_mcp.server:main"
@@ -26,3 +42,11 @@ dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.23.0",
 ]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["kicad_mcp*"]
+exclude = ["tests*", "docs*"]
+
+[tool.setuptools.package-data]
+"kicad_mcp" = ["prompts/*.txt", "resources/**/*.json"]
