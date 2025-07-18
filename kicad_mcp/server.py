@@ -5,6 +5,7 @@ import atexit
 import os
 import signal
 import logging
+import functools
 from typing import Callable
 from fastmcp import FastMCP
 
@@ -127,9 +128,11 @@ def create_server() -> FastMCP:
     # Always print this now, as we rely on CLI
     logging.info(f"KiCad Python module setup removed; relying on kicad-cli for external operations.")
 
+    # Build a lifespan callable with the kwarg baked in (FastMCP 2.x dropped lifespan_kwargs)
+    lifespan_factory = functools.partial(kicad_lifespan, kicad_modules_available=kicad_modules_available)
+
     # Initialize FastMCP server
-    # Pass the availability flag (always False now) to the lifespan context
-    mcp = FastMCP("KiCad", lifespan=kicad_lifespan, lifespan_kwargs={"kicad_modules_available": kicad_modules_available})
+    mcp = FastMCP("KiCad", lifespan=lifespan_factory)
     logging.info(f"Created FastMCP server instance with lifespan management")
     
     # Register resources
@@ -207,15 +210,15 @@ def setup_logging() -> None:
     )
 
 
-async def main() -> None:
-    """Main server entry point."""
+def main() -> None:
+    """Start the KiCad MCP server (blocking)."""
     setup_logging()
     logging.info("Starting KiCad MCP server...")
     
     server = create_server()
     
     try:
-        await server.run()
+        server.run()  # FastMCP manages its own event loop
     except KeyboardInterrupt:
         logging.info("Server interrupted by user")
     except Exception as e:
@@ -225,5 +228,4 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+    main()
