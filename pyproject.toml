@@ -7,6 +7,7 @@ name = "kicad-mcp"
 version = "0.1.0"
 authors = [{ name = "Lama Al Rajih" }]
 description = "Model Context Protocol server for KiCad on Mac, Windows, and Linux"
+license = { text = "MIT" }
 readme = "README.md"
 requires-python = ">=3.10"
 classifiers = [
@@ -35,3 +36,6 @@ kicad-mcp = "kicad_mcp.main:main"
 where = ["."]
 include = ["kicad_mcp*"]
 exclude = ["tests*", "docs*"]
+
+[tool.setuptools.package-data]
+"kicad_mcp" = ["prompts/*.txt", "resources/**/*.json"]
