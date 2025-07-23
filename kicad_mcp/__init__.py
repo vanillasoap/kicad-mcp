@@ -1,5 +1,7 @@
 """
-KiCad MCP Server - A Model Context Protocol server for KiCad.
+KiCad MCP Server.
+
+A Model Context Protocol (MCP) server for KiCad electronic design automation (EDA) files.
 """
 from .server import *
 from .config import *
