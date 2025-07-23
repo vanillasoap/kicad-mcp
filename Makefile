@@ -1,4 +1,4 @@
-.PHONY: help install test lint format clean build
+.PHONY: help install test lint format clean build run
 
 help:
 	@echo "Available commands:"
@@ -34,3 +34,6 @@ clean:
 
 build:
 	uv build
+
+run:
+	uv run python main.py
