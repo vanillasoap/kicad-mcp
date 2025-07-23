@@ -49,18 +49,6 @@ dependencies = [
     "defusedxml>=0.7.0",  # Secure XML parsing
 ]
 
-classifiers = [
-  "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11",
-  "Programming Language :: Python :: 3.12",
-  "License :: OSI Approved :: MIT License",
-  "Operating System :: OS Independent",
-  "Intended Audience :: Developers",
-  "Topic :: Software Development :: Libraries :: Python Modules",
-  "Topic :: Scientific/Engineering :: Electronic Design Automation (EDA)",
-]
-
 [project.urls]
 "Homepage" = "https://github.com/lamaalrajih/kicad-mcp"
 "Bug Tracker" = "https://github.com/lamaalrajih/kicad-mcp/issues"
