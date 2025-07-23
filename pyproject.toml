@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "kicad-mcp"
-version = "0.2.0"
+version = "0.1.0"
 description = "Model Context Protocol (MCP) server for KiCad electronic design automation (EDA) files"
 readme = "README.md"
 license = { text = "MIT" }
@@ -43,23 +43,32 @@ classifiers = [
 requires-python = ">=3.10"
 dependencies = [
     "mcp[cli]>=1.0.0",
-    "fastmcp>=0.1.0",
+    "fastmcp>=2.0.0",
     "pandas>=2.0.0",
     "pyyaml>=6.0.0",
     "defusedxml>=0.7.0",  # Secure XML parsing
 ]
 
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Intended Audience :: Developers",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Topic :: Scientific/Engineering :: Electronic Design Automation (EDA)",
+]
+
 [project.urls]
-Homepage = "https://github.com/your-org/kicad-mcp"
-Documentation = "https://github.com/your-org/kicad-mcp/blob/main/README.md"
-Repository = "https://github.com/your-org/kicad-mcp"
-"Bug Tracker" = "https://github.com/your-org/kicad-mcp/issues"
-Changelog = "https://github.com/your-org/kicad-mcp/blob/main/CHANGELOG.md"
+"Homepage" = "https://github.com/lamaalrajih/kicad-mcp"
+"Bug Tracker" = "https://github.com/lamaalrajih/kicad-mcp/issues"
+"Documentation" = "https://github.com/lamaalrajih/kicad-mcp#readme"
 
 [project.scripts]
 kicad-mcp = "kicad_mcp.server:main"
 
-# UV dependency groups (replaces project.optional-dependencies)
 [dependency-groups]
 dev = [
     "pytest>=7.0.0",
@@ -91,9 +100,8 @@ visualization = [
     "playwright>=1.40.0",  # Browser automation (optional)
 ]
 
-# Tool configurations remain the same
 [tool.ruff]
-target-version = "py311"
+target-version = "py310"
 line-length = 100
 
 [tool.ruff.lint]
@@ -106,6 +114,7 @@ select = [
     "C4", # flake8-comprehensions
     "UP", # pyupgrade
     "SIM", # flake8-simplify
+    "UP", # pyupgrade
 ]
 ignore = [
     "E501",  # line too long, handled by ruff format
@@ -159,6 +168,7 @@ module = [
     "mcp.*",
 ]
 ignore_missing_imports = true
+
 
 [tool.pytest.ini_options]
 minversion = "7.0"
@@ -225,3 +235,11 @@ skips = ["B101", "B601", "B404", "B603", "B110", "B112"]  # Skip low-severity su
 
 [tool.bandit.assert_used]
 skips = ["*_test.py", "*/test_*.py"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["kicad_mcp*"]
+exclude = ["tests*", "docs*"]
+
+[tool.setuptools.package-data]
+"kicad_mcp" = ["prompts/*.txt", "resources/**/*.json"]
