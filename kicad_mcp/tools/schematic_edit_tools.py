@@ -112,6 +112,92 @@ def _estimate_ic_pin_coordinates(component, pin_identifier, center_coords, comp_
         return center_coords
 
 
+def _create_wire_routing(from_coords, to_coords, from_component, to_component):
+    """Create proper wire routing with bends between two pins.
+
+    Args:
+        from_coords: [x, y] coordinates of source pin
+        to_coords: [x, y] coordinates of target pin
+        from_component: Source component reference
+        to_component: Target component reference
+
+    Returns:
+        List of wire segments with start/end coordinates
+    """
+    start_x, start_y = from_coords
+    end_x, end_y = to_coords
+
+    # Calculate routing strategy based on pin positions
+    dx = end_x - start_x
+    dy = end_y - start_y
+
+    # Use L-shaped routing (two segments) for most connections
+    segments = []
+
+    # Determine routing direction based on distance and component layout
+    if abs(dx) > abs(dy):
+        # Horizontal routing first, then vertical
+        mid_x = start_x + dx * 0.7  # 70% of the way horizontally
+
+        segments.append({
+            'start': [start_x, start_y],
+            'end': [mid_x, start_y],
+            'type': 'horizontal'
+        })
+
+        segments.append({
+            'start': [mid_x, start_y],
+            'end': [mid_x, end_y],
+            'type': 'vertical'
+        })
+
+        segments.append({
+            'start': [mid_x, end_y],
+            'end': [end_x, end_y],
+            'type': 'horizontal'
+        })
+    else:
+        # Vertical routing first, then horizontal
+        mid_y = start_y + dy * 0.7  # 70% of the way vertically
+
+        segments.append({
+            'start': [start_x, start_y],
+            'end': [start_x, mid_y],
+            'type': 'vertical'
+        })
+
+        segments.append({
+            'start': [start_x, mid_y],
+            'end': [end_x, mid_y],
+            'type': 'horizontal'
+        })
+
+        segments.append({
+            'start': [end_x, mid_y],
+            'end': [end_x, end_y],
+            'type': 'vertical'
+        })
+
+    # Filter out zero-length segments
+    valid_segments = []
+    for segment in segments:
+        start = segment['start']
+        end = segment['end']
+        if start[0] != end[0] or start[1] != end[1]:  # Not zero length
+            valid_segments.append(segment)
+
+    # If no valid segments (pins are at same location), create a short segment
+    if not valid_segments:
+        valid_segments = [{
+            'start': from_coords,
+            'end': to_coords,
+            'type': 'direct'
+        }]
+
+    logging.info(f"Created {len(valid_segments)} wire segments for {from_component} → {to_component}")
+    return valid_segments
+
+
 def find_component_by_reference(schem, component_reference: str):
     """Find a component by its reference designator with fallback methods.
 
@@ -793,29 +879,70 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
                     """Get actual pin coordinates for wire routing."""
                     try:
                         # Method 1: Use pin location if available (SymbolPin objects)
-                        if hasattr(pin_obj, 'location') and hasattr(pin_obj.location, 'value'):
+                        # But skip this for ParsedValue objects that might return component center
+                        if (hasattr(pin_obj, 'location') and hasattr(pin_obj.location, 'value')
+                            and type(pin_obj).__name__ == 'SymbolPin'):
                             coords = pin_obj.location.value[:2]  # [x, y] only
-                            logging.info(f"Using actual pin coordinates for {comp_name}.{pin_identifier}: {coords}")
+                            logging.info(f"Using SymbolPin coordinates for {comp_name}.{pin_identifier}: {coords}")
                             return coords
+                        elif (hasattr(pin_obj, 'location') and hasattr(pin_obj.location, 'value')
+                              and type(pin_obj).__name__ == 'ParsedValue'):
+                            # ParsedValue pins may have incorrect location data - check if it's just component center
+                            coords = pin_obj.location.value[:2]
+                            comp_pos = component.at
+                            if hasattr(comp_pos, 'value'):
+                                center_coords = comp_pos.value[:2]
+                            else:
+                                center_coords = [float(comp_pos[0]), float(comp_pos[1])]
+
+                            if coords != center_coords:
+                                logging.info(f"Using ParsedValue pin coordinates for {comp_name}.{pin_identifier}: {coords}")
+                                return coords
+                            else:
+                                logging.warning(f"ParsedValue pin {comp_name}.{pin_identifier} has same coords as center, using geometric estimation")
+                                # Fall through to geometric estimation
 
                         # Method 2: Try iterating through component pins to find location
                         if hasattr(component, 'pin'):
                             for pin in component.pin:
                                 try:
-                                    # Check if this is our target pin
+                                    # Check if this is our target pin - avoid boolean evaluation
                                     pin_matches = False
                                     if hasattr(pin, 'number') and str(getattr(pin, 'number')) == str(pin_identifier):
                                         pin_matches = True
                                     elif hasattr(pin, 'name') and str(getattr(pin, 'name')) == str(pin_identifier):
                                         pin_matches = True
-                                    elif hasattr(pin, '__getitem__') and str(pin[0]) == str(pin_identifier):
-                                        pin_matches = True
+                                    elif hasattr(pin, '__getitem__'):
+                                        try:
+                                            if str(pin[0]) == str(pin_identifier):
+                                                pin_matches = True
+                                        except (IndexError, TypeError):
+                                            pass
 
-                                    if pin_matches and hasattr(pin, 'location') and hasattr(pin.location, 'value'):
-                                        coords = pin.location.value[:2]
-                                        logging.info(f"Found pin coordinates by iteration for {comp_name}.{pin_identifier}: {coords}")
-                                        return coords
-                                except Exception:
+                                    if pin_matches:
+                                        # Check for location data, but be cautious with ParsedValue pins
+                                        if hasattr(pin, 'location') and hasattr(pin.location, 'value'):
+                                            coords = pin.location.value[:2]
+
+                                            # For ParsedValue pins, check if coordinates are just component center
+                                            if type(pin).__name__ == 'ParsedValue':
+                                                comp_pos = component.at
+                                                if hasattr(comp_pos, 'value'):
+                                                    center_coords = comp_pos.value[:2]
+                                                else:
+                                                    center_coords = [float(comp_pos[0]), float(comp_pos[1])]
+
+                                                if coords == center_coords:
+                                                    logging.warning(f"ParsedValue pin {comp_name}.{pin_identifier} location matches center, skipping to geometric estimation")
+                                                    break  # Exit loop to reach geometric estimation
+
+                                            logging.info(f"Found pin coordinates by iteration for {comp_name}.{pin_identifier}: {coords}")
+                                            return coords
+                                        else:
+                                            logging.debug(f"Pin {comp_name}.{pin_identifier} found but has no location data")
+                                            break  # Exit loop to reach geometric estimation
+                                except Exception as e:
+                                    logging.debug(f"Error checking pin {comp_name}.{pin_identifier}: {e}")
                                     continue
 
                         # Fallback to geometric pin coordinate estimation for ParsedValue pins
@@ -850,9 +977,20 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
                         "to_coordinates": to_coords
                     }
 
-                # Create wire connection using coordinates
-                new_wire.start_at(from_coords)
-                new_wire.end_at(to_coords)
+                # Create wire routing with proper bends instead of straight lines
+                wire_segments = _create_wire_routing(from_coords, to_coords, from_component, to_component)
+
+                # Create wire segments
+                for i, segment in enumerate(wire_segments):
+                    if i == 0:
+                        # Use the existing wire for the first segment
+                        new_wire.start_at(segment['start'])
+                        new_wire.end_at(segment['end'])
+                    else:
+                        # Create additional wire segments for bends
+                        additional_wire = schem.wire.new()
+                        additional_wire.start_at(segment['start'])
+                        additional_wire.end_at(segment['end'])
 
                 # Save the schematic using kicad-skip API
                 schem.overwrite()
@@ -863,10 +1001,12 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
                     "to": f"{to_component}.{to_pin}",
                     "from_coordinates": from_coords,
                     "to_coordinates": to_coords,
+                    "wire_segments": len(wire_segments),
+                    "routing_type": "orthogonal" if len(wire_segments) > 1 else "direct",
                     "backup_created": backup_path is not None,
                     "backup_path": backup_path,
-                    "method": "pin_to_pin_wire",
-                    "note": "Connected using actual pin coordinates for precise electrical connections."
+                    "method": "routed_wire_segments",
+                    "note": f"Connected using {len(wire_segments)} wire segments with proper routing and actual pin coordinates."
                 }
 
             except Exception as e:
