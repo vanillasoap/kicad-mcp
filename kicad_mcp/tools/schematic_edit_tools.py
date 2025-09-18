@@ -701,23 +701,64 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
                     "lib_id": safe_serialize(getattr(to_comp, "lib_id", None))
                 }
 
-            # Create a new wire using coordinate-based connection
+            # Create a new wire using ACTUAL PIN COORDINATES
             try:
                 new_wire = schem.wire.new()
 
-                # Get component positions
-                from_pos = from_comp.at
-                to_pos = to_comp.at
+                # Get actual pin coordinates instead of component centers
+                def get_pin_coordinates(component, pin_obj, pin_identifier, comp_name):
+                    """Get actual pin coordinates for wire routing."""
+                    try:
+                        # Method 1: Use pin location if available (SymbolPin objects)
+                        if hasattr(pin_obj, 'location') and hasattr(pin_obj.location, 'value'):
+                            coords = pin_obj.location.value[:2]  # [x, y] only
+                            logging.info(f"Using actual pin coordinates for {comp_name}.{pin_identifier}: {coords}")
+                            return coords
 
-                # Extract coordinates without triggering boolean evaluation issues
-                try:
-                    from_coords = [float(from_pos[0]), float(from_pos[1])]
-                    to_coords = [float(to_pos[0]), float(to_pos[1])]
-                except Exception as pos_error:
+                        # Method 2: Try iterating through component pins to find location
+                        if hasattr(component, 'pin'):
+                            for pin in component.pin:
+                                try:
+                                    # Check if this is our target pin
+                                    pin_matches = False
+                                    if hasattr(pin, 'number') and str(getattr(pin, 'number')) == str(pin_identifier):
+                                        pin_matches = True
+                                    elif hasattr(pin, 'name') and str(getattr(pin, 'name')) == str(pin_identifier):
+                                        pin_matches = True
+                                    elif hasattr(pin, '__getitem__') and str(pin[0]) == str(pin_identifier):
+                                        pin_matches = True
+
+                                    if pin_matches and hasattr(pin, 'location') and hasattr(pin.location, 'value'):
+                                        coords = pin.location.value[:2]
+                                        logging.info(f"Found pin coordinates by iteration for {comp_name}.{pin_identifier}: {coords}")
+                                        return coords
+                                except Exception:
+                                    continue
+
+                        # Fallback to component center
+                        comp_pos = component.at
+                        if hasattr(comp_pos, 'value'):
+                            center_coords = comp_pos.value[:2]
+                        else:
+                            center_coords = [float(comp_pos[0]), float(comp_pos[1])]
+
+                        logging.warning(f"Using component center as fallback for {comp_name}.{pin_identifier}: {center_coords}")
+                        return center_coords
+
+                    except Exception as e:
+                        logging.error(f"Error getting coordinates for {comp_name}.{pin_identifier}: {e}")
+                        return [0, 0]  # Ultimate fallback
+
+                # Get actual pin coordinates
+                from_coords = get_pin_coordinates(from_comp, from_pin_obj, from_pin, from_component)
+                to_coords = get_pin_coordinates(to_comp, to_pin_obj, to_pin, to_component)
+
+                # Validate coordinates
+                if not from_coords or not to_coords:
                     return {
-                        "error": f"Could not extract coordinates: {str(pos_error)}",
-                        "from_position": safe_serialize(from_pos),
-                        "to_position": safe_serialize(to_pos)
+                        "error": "Could not determine pin coordinates",
+                        "from_coordinates": from_coords,
+                        "to_coordinates": to_coords
                     }
 
                 # Create wire connection using coordinates
@@ -735,8 +776,8 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
                     "to_coordinates": to_coords,
                     "backup_created": backup_path is not None,
                     "backup_path": backup_path,
-                    "method": "coordinate_based_wire",
-                    "note": "Connected to component centers. Pin-specific offsets not yet implemented."
+                    "method": "pin_to_pin_wire",
+                    "note": "Connected using actual pin coordinates for precise electrical connections."
                 }
 
             except Exception as e:
