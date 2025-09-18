@@ -556,20 +556,36 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
             from_pin_obj = None
             to_pin_obj = None
 
-            # Search for from_pin - check both number and name
+            # Search for from_pin - flexible matching for various pin formats
             for pin in from_comp.pin:
                 pin_matches = False
                 try:
-                    # Check pin number
+                    # Get the raw pin number from the pin object
                     pin_number = str(pin[0]) if pin[0] is not None else ""
+
+                    # Method 1: Direct exact match with pin number
                     if pin_number == from_pin:
                         pin_matches = True
 
-                    # Check pin name if available
+                    # Method 2: Check if requested pin matches the number part of formatted pins
+                    # Handle cases like "23 (GPIO21/ADC)" where user wants to connect to "23"
+                    elif pin_number and from_pin:
+                        # Extract just the number part from formatted pins like "1 (~)" or "23 (GPIO21)"
+                        number_part = pin_number.split()[0] if " " in pin_number else pin_number
+                        if number_part == from_pin:
+                            pin_matches = True
+
+                    # Method 3: Check if user provided a GPIO name that matches the description
                     if not pin_matches and len(pin) > 2:
                         potential_name = pin[2] if pin[2] != getattr(pin, 'uuid', None) else None
-                        if potential_name and str(potential_name) == from_pin:
-                            pin_matches = True
+                        if potential_name:
+                            name_str = str(potential_name)
+                            # Direct name match
+                            if name_str == from_pin:
+                                pin_matches = True
+                            # Check if the requested pin is part of the GPIO name (e.g., "GPIO21" from "GPIO21/ADC")
+                            elif "/" in name_str and from_pin in name_str.split("/"):
+                                pin_matches = True
 
                     if pin_matches:
                         from_pin_obj = pin
@@ -577,20 +593,36 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
                 except (IndexError, TypeError):
                     continue
 
-            # Search for to_pin - check both number and name
+            # Search for to_pin - flexible matching for various pin formats
             for pin in to_comp.pin:
                 pin_matches = False
                 try:
-                    # Check pin number
+                    # Get the raw pin number from the pin object
                     pin_number = str(pin[0]) if pin[0] is not None else ""
+
+                    # Method 1: Direct exact match with pin number
                     if pin_number == to_pin:
                         pin_matches = True
 
-                    # Check pin name if available
+                    # Method 2: Check if requested pin matches the number part of formatted pins
+                    # Handle cases like "23 (GPIO21/ADC)" where user wants to connect to "23"
+                    elif pin_number and to_pin:
+                        # Extract just the number part from formatted pins like "1 (~)" or "23 (GPIO21)"
+                        number_part = pin_number.split()[0] if " " in pin_number else pin_number
+                        if number_part == to_pin:
+                            pin_matches = True
+
+                    # Method 3: Check if user provided a GPIO name that matches the description
                     if not pin_matches and len(pin) > 2:
                         potential_name = pin[2] if pin[2] != getattr(pin, 'uuid', None) else None
-                        if potential_name and str(potential_name) == to_pin:
-                            pin_matches = True
+                        if potential_name:
+                            name_str = str(potential_name)
+                            # Direct name match
+                            if name_str == to_pin:
+                                pin_matches = True
+                            # Check if the requested pin is part of the GPIO name (e.g., "GPIO21" from "GPIO21/ADC")
+                            elif "/" in name_str and to_pin in name_str.split("/"):
+                                pin_matches = True
 
                     if pin_matches:
                         to_pin_obj = pin

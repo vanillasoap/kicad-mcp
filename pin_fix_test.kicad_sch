@@ -1,0 +1,79 @@
+(kicad_sch (version 20211123) (generator eeschema) (uuid 12345678-1234-1234-1234-123456789abc) (paper "A4") (title_block (title "Test Wiring") (date "2025-01-18") (rev "1")) 
+
+(symbol (lib_id "Device:R") (at 50.8 50.8 0) (unit 1) (uuid abcd1234-1234-1234-1234-123456789def) 
+
+(property "Reference" "R_SCL" (id 0) (at 52.578 49.6316 0) (effects (font (size 1.27 1.27)) (justify left))) 
+
+(property "Value" "10k" (id 1) (at 52.578 51.9366 0) (effects (font (size 1.27 1.27)) (justify left))) 
+
+(property "Footprint" "" (id 2) (at 49.022 50.8 90) (effects (font (size 1.27 1.27)) hide)) 
+
+(property "Datasheet" "~" (id 3) (at 50.8 50.8 0) (effects (font (size 1.27 1.27)) hide)) (pin "1" (uuid 1111aaaa-1111-1111-1111-111111111111)) (pin "2" (uuid 2222bbbb-2222-2222-2222-222222222222))) 
+
+(symbol (lib_id "MCU_ST_STM32F4:STM32F407VGTx") (at 101.6 76.2 0) (unit 1) (uuid efgh5678-5678-5678-5678-567856785678) 
+
+(property "Reference" "U1" (id 0) (at 104.521 74.6316 0) (effects (font (size 1.27 1.27)) (justify left))) 
+
+(property "Value" "TAS5830" (id 1) (at 104.521 76.9366 0) (effects (font (size 1.27 1.27)) (justify left))) 
+
+(property "Footprint" "" (id 2) (at 101.6 80.61 0) (effects (font (size 1.27 1.27)) hide)) 
+
+(property "Datasheet" "~" (id 3) (at 101.6 76.2 0) (effects (font (size 1.27 1.27)) hide)) (pin "1" (uuid 3333cccc-3333-3333-3333-333333333333)) (pin "2" (uuid 4444dddd-4444-4444-4444-444444444444)) (pin "3" (uuid 5555eeee-5555-5555-5555-555555555555)) (pin "4" (uuid 6666ffff-6666-6666-6666-666666666666)) (pin "5" (uuid 7777gggg-7777-7777-7777-777777777777))) 
+
+(symbol (lib_id "Device:R") (at 50.8 25.4 0) (unit 1) (uuid ijkl9012-9012-9012-9012-901290129012) 
+
+(property "Reference" "R_PDN" (id 0) (at 52.578 24.0316 0) (effects (font (size 1.27 1.27)) (justify left))) 
+
+(property "Value" "100k" (id 1) (at 52.578 26.3366 0) (effects (font (size 1.27 1.27)) (justify left))) 
+
+(property "Footprint" "" (id 2) (at 49.022 25.4 90) (effects (font (size 1.27 1.27)) hide)) 
+
+(property "Datasheet" "~" (id 3) (at 50.8 25.4 0) (effects (font (size 1.27 1.27)) hide)) (pin "1" (uuid 8888hhhh-8888-8888-8888-888888888888)) (pin "2" (uuid 9999iiii-9999-9999-9999-999999999999))) 
+
+(wire (pts 
+
+(xy 50.8 50.8) 
+
+(xy 101.6 76.2)) (stroke (width 0) (type default)) (uuid dd2be8f6-76dd-4d94-a683-f67387cd1273)) 
+
+(wire (pts 
+
+(xy 50.8 50.8) 
+
+(xy 101.6 76.2)) (stroke (width 0) (type default)) (uuid 4e1422e3-d95e-4aea-ad8f-e267d3302939)) 
+
+(wire (pts 
+
+(xy 50.8 25.4) 
+
+(xy 101.6 76.2)) (stroke (width 0) (type default)) (uuid e6937172-4feb-46db-a837-39cb9c944641)) 
+
+(wire (pts 
+
+(xy 50.8 50.8) 
+
+(xy 101.6 76.2)) (stroke (width 0) (type default)) (uuid f0b76cab-64e2-4502-80e1-de9e9796a4f8)) 
+
+(wire (pts 
+
+(xy 50.8 50.8) 
+
+(xy 101.6 76.2)) (stroke (width 0) (type default)) (uuid 5faba835-d249-40b3-ad9e-5457c2ad666c)) 
+
+(wire (pts 
+
+(xy 50.8 50.8) 
+
+(xy 101.6 76.2)) (stroke (width 0) (type default)) (uuid a0f39fb2-b5fb-45e1-a375-91fd72cca86c)) 
+
+(wire (pts 
+
+(xy 50.8 25.4) 
+
+(xy 101.6 76.2)) (stroke (width 0) (type default)) (uuid 8d123830-950c-48ff-a4ac-35d28726ce02)) 
+
+(wire (pts 
+
+(xy 50.8 25.4) 
+
+(xy 101.6 76.2)) (stroke (width 0) (type default)) (uuid d44ec0d9-4800-4519-ab2c-2dfe46d11f26)))
