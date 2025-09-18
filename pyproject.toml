@@ -47,6 +47,8 @@ dependencies = [
     "pandas>=2.0.0",
     "pyyaml>=6.0.0",
     "defusedxml>=0.7.0",  # Secure XML parsing
+    "kicad-skip>=0.2.5",  # KiCAD schematic/PCB editing
+    "sexpdata>=0.0.3",    # S-expression parsing (kicad-skip dependency)
 ]
 
 [project.urls]
@@ -180,6 +182,7 @@ markers = [
     "integration: Integration tests",
     "slow: Tests that take more than a few seconds",
     "requires_kicad: Tests that require KiCad CLI to be installed",
+    "requires_kicad_skip: Tests that require kicad-skip library to be installed",
     "performance: Performance benchmarking tests",
 ]
 asyncio_mode = "auto"

@@ -1,0 +1,518 @@
+"""
+Schematic editing tools using KiCAD Skip.
+"""
+
+import os
+import logging
+from typing import Dict, List, Any, Optional
+from mcp.server.fastmcp import FastMCP
+
+from kicad_mcp.utils.path_validator import validate_path
+from kicad_mcp.utils.file_utils import backup_file
+
+
+def register_schematic_edit_tools(mcp: FastMCP) -> None:
+    """Register schematic editing tools with the MCP server.
+
+    Args:
+        mcp: The FastMCP server instance
+    """
+
+    @mcp.tool()
+    def load_schematic(schematic_path: str) -> Dict[str, Any]:
+        """Load a KiCad schematic file for editing.
+
+        Args:
+            schematic_path: Path to the .kicad_sch file
+
+        Returns:
+            Dict with schematic info and available operations
+        """
+        logging.info(f"Loading schematic: {schematic_path}")
+
+        # Validate path
+        try:
+            validated_path = validate_path(schematic_path, must_exist=True)
+        except Exception as e:
+            return {"error": f"Invalid path: {str(e)}"}
+
+        if not schematic_path.endswith(".kicad_sch"):
+            return {"error": "File must be a .kicad_sch schematic file"}
+
+        try:
+            import skip
+
+            schem = skip.Schematic(schematic_path)
+
+            # Get basic info about the schematic
+            symbols_info = []
+            try:
+                for symbol in schem.symbol:
+                    symbol_info = {
+                        "reference": getattr(symbol, "reference", "Unknown"),
+                        "value": getattr(symbol, "value", "Unknown"),
+                        "position": getattr(symbol, "position", "Unknown"),
+                    }
+                    symbols_info.append(symbol_info)
+            except Exception as e:
+                logging.warning(f"Could not enumerate symbols: {e}")
+
+            wires_count = 0
+            try:
+                wires_count = len(list(schem.wire))
+            except Exception as e:
+                logging.warning(f"Could not count wires: {e}")
+
+            return {
+                "status": "loaded",
+                "path": schematic_path,
+                "symbols_count": len(symbols_info),
+                "wires_count": wires_count,
+                "symbols_preview": symbols_info[:10],  # First 10 symbols
+                "operations": [
+                    "modify_component_property",
+                    "add_component",
+                    "connect_components",
+                    "search_components",
+                    "move_component",
+                ],
+            }
+
+        except ImportError:
+            return {"error": "kicad-skip library not installed. Run: pip install kicad-skip"}
+        except Exception as e:
+            return {"error": f"Failed to load schematic: {str(e)}"}
+
+    @mcp.tool()
+    def search_components(
+        schematic_path: str, search_type: str, search_value: str
+    ) -> Dict[str, Any]:
+        """Search for components in a schematic.
+
+        Args:
+            schematic_path: Path to the .kicad_sch file
+            search_type: Type of search ('reference', 'value', 'regex', 'position')
+            search_value: Value to search for
+
+        Returns:
+            List of matching components
+        """
+        logging.info(f"Searching components in {schematic_path}: {search_type}={search_value}")
+
+        # Validate path
+        try:
+            validate_path(schematic_path, must_exist=True)
+        except Exception as e:
+            return {"error": f"Invalid path: {str(e)}"}
+
+        try:
+            import skip
+
+            schem = skip.Schematic(schematic_path)
+
+            matches = []
+
+            if search_type == "reference":
+                try:
+                    if search_value.endswith("*"):
+                        # Startswith search
+                        search_prefix = search_value[:-1]
+                        for symbol in schem.symbol.reference_startswith(search_prefix):
+                            matches.append(
+                                {
+                                    "reference": getattr(symbol, "reference", "Unknown"),
+                                    "value": getattr(symbol, "value", "Unknown"),
+                                    "position": getattr(symbol, "position", "Unknown"),
+                                }
+                            )
+                    else:
+                        # Exact match
+                        symbol = getattr(schem.symbol, search_value, None)
+                        if symbol:
+                            matches.append(
+                                {
+                                    "reference": getattr(symbol, "reference", "Unknown"),
+                                    "value": getattr(symbol, "value", "Unknown"),
+                                    "position": getattr(symbol, "position", "Unknown"),
+                                }
+                            )
+                except Exception as e:
+                    logging.warning(f"Reference search failed: {e}")
+
+            elif search_type == "regex":
+                try:
+                    for symbol in schem.symbol.reference_matches(search_value):
+                        matches.append(
+                            {
+                                "reference": getattr(symbol, "reference", "Unknown"),
+                                "value": getattr(symbol, "value", "Unknown"),
+                                "position": getattr(symbol, "position", "Unknown"),
+                            }
+                        )
+                except Exception as e:
+                    logging.warning(f"Regex search failed: {e}")
+
+            elif search_type == "value":
+                try:
+                    for symbol in schem.symbol:
+                        if hasattr(symbol, "value") and str(symbol.value) == search_value:
+                            matches.append(
+                                {
+                                    "reference": getattr(symbol, "reference", "Unknown"),
+                                    "value": getattr(symbol, "value", "Unknown"),
+                                    "position": getattr(symbol, "position", "Unknown"),
+                                }
+                            )
+                except Exception as e:
+                    logging.warning(f"Value search failed: {e}")
+
+            return {
+                "search_type": search_type,
+                "search_value": search_value,
+                "matches_count": len(matches),
+                "matches": matches,
+            }
+
+        except ImportError:
+            return {"error": "kicad-skip library not installed. Run: pip install kicad-skip"}
+        except Exception as e:
+            return {"error": f"Search failed: {str(e)}"}
+
+    @mcp.tool()
+    def modify_component_property(
+        schematic_path: str,
+        component_reference: str,
+        property_name: str,
+        new_value: str,
+        create_backup: bool = True,
+    ) -> Dict[str, Any]:
+        """Modify a property of a component in the schematic.
+
+        Args:
+            schematic_path: Path to the .kicad_sch file
+            component_reference: Reference of the component (e.g., 'R1', 'C5')
+            property_name: Name of the property to modify (e.g., 'Value', 'MPN')
+            new_value: New value for the property
+            create_backup: Whether to create a backup before modifying
+
+        Returns:
+            Result of the modification
+        """
+        logging.info(
+            f"Modifying {component_reference}.{property_name} = {new_value} in {schematic_path}"
+        )
+
+        # Validate path
+        try:
+            validate_path(schematic_path, must_exist=True)
+        except Exception as e:
+            return {"error": f"Invalid path: {str(e)}"}
+
+        try:
+            # Create backup if requested
+            backup_path = None
+            if create_backup:
+                backup_result = backup_file(schematic_path)
+                if backup_result["success"]:
+                    backup_path = backup_result["backup_path"]
+                else:
+                    return {"error": f"Failed to create backup: {backup_result['error']}"}
+
+            import skip
+
+            schem = skip.Schematic(schematic_path)
+
+            # Find the component
+            try:
+                component = getattr(schem.symbol, component_reference, None)
+                if not component:
+                    return {"error": f"Component {component_reference} not found"}
+
+                # Get the old value for comparison
+                old_value = "Not set"
+                try:
+                    if hasattr(component, "property") and hasattr(
+                        component.property, property_name
+                    ):
+                        old_value = getattr(component.property, property_name).value
+                except:
+                    pass
+
+                # Set the new property value
+                if not hasattr(component, "property"):
+                    return {"error": f"Component {component_reference} has no properties"}
+
+                if hasattr(component.property, property_name):
+                    getattr(component.property, property_name).value = new_value
+                else:
+                    # Property doesn't exist, might need to create it
+                    return {
+                        "error": f"Property {property_name} not found on component {component_reference}"
+                    }
+
+                # Save the schematic
+                schem.save()
+
+                return {
+                    "status": "modified",
+                    "component": component_reference,
+                    "property": property_name,
+                    "old_value": old_value,
+                    "new_value": new_value,
+                    "backup_created": backup_path is not None,
+                    "backup_path": backup_path,
+                }
+
+            except AttributeError:
+                return {"error": f"Component {component_reference} not found"}
+
+        except ImportError:
+            return {"error": "kicad-skip library not installed. Run: pip install kicad-skip"}
+        except Exception as e:
+            return {"error": f"Modification failed: {str(e)}"}
+
+    @mcp.tool()
+    def add_wire_connection(
+        schematic_path: str,
+        from_component: str,
+        from_pin: str,
+        to_component: str,
+        to_pin: str,
+        create_backup: bool = True,
+    ) -> Dict[str, Any]:
+        """Add a wire connection between two component pins.
+
+        Args:
+            schematic_path: Path to the .kicad_sch file
+            from_component: Reference of the source component (e.g., 'R1')
+            from_pin: Pin number/name on source component
+            to_component: Reference of the target component (e.g., 'C1')
+            to_pin: Pin number/name on target component
+            create_backup: Whether to create a backup before modifying
+
+        Returns:
+            Result of the wire creation
+        """
+        logging.info(f"Adding wire from {from_component}.{from_pin} to {to_component}.{to_pin}")
+
+        # Validate path
+        try:
+            validate_path(schematic_path, must_exist=True)
+        except Exception as e:
+            return {"error": f"Invalid path: {str(e)}"}
+
+        try:
+            # Create backup if requested
+            backup_path = None
+            if create_backup:
+                backup_result = backup_file(schematic_path)
+                if backup_result["success"]:
+                    backup_path = backup_result["backup_path"]
+                else:
+                    return {"error": f"Failed to create backup: {backup_result['error']}"}
+
+            import skip
+
+            schem = skip.Schematic(schematic_path)
+
+            # Find the components
+            from_comp = getattr(schem.symbol, from_component, None)
+            to_comp = getattr(schem.symbol, to_component, None)
+
+            if not from_comp:
+                return {"error": f"Source component {from_component} not found"}
+            if not to_comp:
+                return {"error": f"Target component {to_component} not found"}
+
+            # Create a new wire
+            new_wire = schem.wire.new()
+
+            # Connect the wire to the pins
+            try:
+                from_pin_obj = getattr(from_comp.pin, from_pin, None)
+                to_pin_obj = getattr(to_comp.pin, to_pin, None)
+
+                if not from_pin_obj:
+                    return {"error": f"Pin {from_pin} not found on component {from_component}"}
+                if not to_pin_obj:
+                    return {"error": f"Pin {to_pin} not found on component {to_component}"}
+
+                new_wire.start_at(from_pin_obj)
+                new_wire.end_at(to_pin_obj)
+
+                # Save the schematic
+                schem.save()
+
+                return {
+                    "status": "connected",
+                    "from": f"{from_component}.{from_pin}",
+                    "to": f"{to_component}.{to_pin}",
+                    "backup_created": backup_path is not None,
+                    "backup_path": backup_path,
+                }
+
+            except Exception as e:
+                return {"error": f"Failed to connect pins: {str(e)}"}
+
+        except ImportError:
+            return {"error": "kicad-skip library not installed. Run: pip install kicad-skip"}
+        except Exception as e:
+            return {"error": f"Wire creation failed: {str(e)}"}
+
+    @mcp.tool()
+    def move_component(
+        schematic_path: str,
+        component_reference: str,
+        x_offset: float,
+        y_offset: float,
+        create_backup: bool = True,
+    ) -> Dict[str, Any]:
+        """Move a component by the specified offset.
+
+        Args:
+            schematic_path: Path to the .kicad_sch file
+            component_reference: Reference of the component to move (e.g., 'R1')
+            x_offset: X offset in mm
+            y_offset: Y offset in mm
+            create_backup: Whether to create a backup before modifying
+
+        Returns:
+            Result of the move operation
+        """
+        logging.info(f"Moving component {component_reference} by ({x_offset}, {y_offset})")
+
+        # Validate path
+        try:
+            validate_path(schematic_path, must_exist=True)
+        except Exception as e:
+            return {"error": f"Invalid path: {str(e)}"}
+
+        try:
+            # Create backup if requested
+            backup_path = None
+            if create_backup:
+                backup_result = backup_file(schematic_path)
+                if backup_result["success"]:
+                    backup_path = backup_result["backup_path"]
+                else:
+                    return {"error": f"Failed to create backup: {backup_result['error']}"}
+
+            import skip
+
+            schem = skip.Schematic(schematic_path)
+
+            # Find the component
+            component = getattr(schem.symbol, component_reference, None)
+            if not component:
+                return {"error": f"Component {component_reference} not found"}
+
+            # Get old position for reference
+            old_position = getattr(component, "position", "Unknown")
+
+            # Move the component
+            try:
+                component.move(x_offset, y_offset)
+
+                # Save the schematic
+                schem.save()
+
+                # Get new position
+                new_position = getattr(component, "position", "Unknown")
+
+                return {
+                    "status": "moved",
+                    "component": component_reference,
+                    "old_position": str(old_position),
+                    "new_position": str(new_position),
+                    "offset": f"({x_offset}, {y_offset})",
+                    "backup_created": backup_path is not None,
+                    "backup_path": backup_path,
+                }
+
+            except Exception as e:
+                return {"error": f"Failed to move component: {str(e)}"}
+
+        except ImportError:
+            return {"error": "kicad-skip library not installed. Run: pip install kicad-skip"}
+        except Exception as e:
+            return {"error": f"Move operation failed: {str(e)}"}
+
+    @mcp.tool()
+    def clone_component(
+        schematic_path: str,
+        source_reference: str,
+        new_reference: str,
+        x_offset: float = 10.0,
+        y_offset: float = 0.0,
+        create_backup: bool = True,
+    ) -> Dict[str, Any]:
+        """Clone an existing component to a new location with a new reference.
+
+        Args:
+            schematic_path: Path to the .kicad_sch file
+            source_reference: Reference of the component to clone (e.g., 'R1')
+            new_reference: Reference for the new component (e.g., 'R2')
+            x_offset: X offset from original position in mm
+            y_offset: Y offset from original position in mm
+            create_backup: Whether to create a backup before modifying
+
+        Returns:
+            Result of the clone operation
+        """
+        logging.info(f"Cloning component {source_reference} to {new_reference}")
+
+        # Validate path
+        try:
+            validate_path(schematic_path, must_exist=True)
+        except Exception as e:
+            return {"error": f"Invalid path: {str(e)}"}
+
+        try:
+            # Create backup if requested
+            backup_path = None
+            if create_backup:
+                backup_result = backup_file(schematic_path)
+                if backup_result["success"]:
+                    backup_path = backup_result["backup_path"]
+                else:
+                    return {"error": f"Failed to create backup: {backup_result['error']}"}
+
+            import skip
+
+            schem = skip.Schematic(schematic_path)
+
+            # Find the source component
+            source_component = getattr(schem.symbol, source_reference, None)
+            if not source_component:
+                return {"error": f"Source component {source_reference} not found"}
+
+            # Clone the component
+            try:
+                new_component = source_component.clone()
+
+                # Update the reference
+                if hasattr(new_component, "reference"):
+                    new_component.reference = new_reference
+
+                # Move to new position
+                new_component.move(x_offset, y_offset)
+
+                # Save the schematic
+                schem.save()
+
+                return {
+                    "status": "cloned",
+                    "source": source_reference,
+                    "new_component": new_reference,
+                    "offset": f"({x_offset}, {y_offset})",
+                    "backup_created": backup_path is not None,
+                    "backup_path": backup_path,
+                }
+
+            except Exception as e:
+                return {"error": f"Failed to clone component: {str(e)}"}
+
+        except ImportError:
+            return {"error": "kicad-skip library not installed. Run: pip install kicad-skip"}
+        except Exception as e:
+            return {"error": f"Clone operation failed: {str(e)}"}

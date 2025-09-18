@@ -159,6 +159,9 @@ The KiCad MCP Server provides several key features, each with detailed documenta
 - **Circuit Pattern Recognition**: Automatically identify common circuit patterns in your schematics
   - *Example:* "What power supply topologies am I using in my IoT device?" → Identifies buck, boost, or linear regulators
 
+- **Schematic Editing**: Directly edit KiCad schematic files programmatically
+  - *Example:* "Change R1's value to 22k and connect it to C1" → Modifies component properties and creates wire connections
+
 For more examples and details on each feature, see the dedicated guides in the documentation. You can also ask the LLM what tools it has access to!
 
 ## Natural Language Interaction
@@ -196,6 +199,7 @@ Detailed documentation for each feature is available in the `docs/` directory:
 - [Design Rule Checking (DRC)](docs/drc_guide.md)
 - [PCB Visualization](docs/thumbnail_guide.md)
 - [Circuit Pattern Recognition](docs/pattern_guide.md)
+- [Schematic Editing](docs/schematic_edit_guide.md)
 - [Prompt Templates](docs/prompt_guide.md)
 
 ## Configuration

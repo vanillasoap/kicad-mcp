@@ -4,6 +4,8 @@ File handling utilities for KiCad MCP Server.
 
 import json
 import os
+import shutil
+from datetime import datetime
 from typing import Any
 
 from kicad_mcp.utils.kicad_utils import get_project_name_from_path
@@ -69,3 +71,47 @@ def load_project_json(project_path: str) -> dict[str, Any] | None:
             return json.load(f)
     except Exception:
         return None
+
+
+def backup_file(file_path: str, backup_dir: str = None) -> dict[str, Any]:
+    """Create a backup of a file before modifying it.
+
+    Args:
+        file_path: Path to the file to backup
+        backup_dir: Directory to store backups (default: same directory as file)
+
+    Returns:
+        Dict with success status and backup path or error message
+    """
+    if not os.path.exists(file_path):
+        return {"success": False, "error": f"File does not exist: {file_path}"}
+
+    try:
+        # Determine backup directory
+        if backup_dir is None:
+            backup_dir = os.path.dirname(file_path)
+
+        # Create backup directory if it doesn't exist
+        os.makedirs(backup_dir, exist_ok=True)
+
+        # Generate backup filename with timestamp
+        file_name = os.path.basename(file_path)
+        name_parts = os.path.splitext(file_name)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_name = f"{name_parts[0]}_backup_{timestamp}{name_parts[1]}"
+        backup_path = os.path.join(backup_dir, backup_name)
+
+        # Create the backup
+        shutil.copy2(file_path, backup_path)
+
+        return {
+            "success": True,
+            "backup_path": backup_path,
+            "original_path": file_path
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to create backup: {str(e)}"
+        }
