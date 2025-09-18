@@ -67,6 +67,22 @@ modify_component_property(
 - `Footprint`: Physical footprint reference
 - `Datasheet`: Link to component datasheet
 
+### `get_component_pin_info`
+Discover available pins on a component.
+
+**Usage:**
+```python
+get_component_pin_info(
+    schematic_path="...",
+    component_reference="R1"
+)
+```
+
+**Returns:**
+- Pin count and detailed pin information
+- Pin numbers and UUIDs
+- Helpful for identifying available pins before creating connections
+
 ### `add_wire_connection`
 Create wire connections between component pins.
 
@@ -85,7 +101,13 @@ add_wire_connection(
 **Pin Naming Conventions:**
 - Resistors/Capacitors: "1", "2"
 - LEDs: "A" (anode), "K" (cathode)
-- ICs: Numbered pins or named pins (check datasheet/symbol)
+- ICs: Numbered pins "1", "2", "3", etc. (check datasheet/symbol)
+- **Note**: Use `get_component_pin_info` to discover available pins before creating connections
+
+**Current Implementation:**
+- Connects wires to component centers (not exact pin positions)
+- Validates pin existence before creating connections
+- Provides helpful error messages with available pins if pin not found
 
 ### `move_component`
 Move components by specified offsets.
@@ -176,8 +198,21 @@ for comp in components:
 
 ### Create Circuit Connections
 ```python
-# Connect resistor to capacitor
-add_wire_connection(
+# Step 1: Discover available pins first
+pin_info_r1 = get_component_pin_info(
+    schematic_path="/path/to/project.kicad_sch",
+    component_reference="R1"
+)
+print(f"R1 has pins: {[pin['number'] for pin in pin_info_r1['pins']]}")
+
+pin_info_c1 = get_component_pin_info(
+    schematic_path="/path/to/project.kicad_sch",
+    component_reference="C1"
+)
+print(f"C1 has pins: {[pin['number'] for pin in pin_info_c1['pins']]}")
+
+# Step 2: Connect resistor to capacitor
+connection_result = add_wire_connection(
     schematic_path="/path/to/project.kicad_sch",
     from_component="R1",
     from_pin="2",
@@ -185,21 +220,33 @@ add_wire_connection(
     to_pin="1"
 )
 
-# Connect multiple components in series
+if connection_result.get("status") == "connected":
+    print(f"Successfully connected {connection_result['from']} to {connection_result['to']}")
+else:
+    print(f"Connection failed: {connection_result.get('error')}")
+    if 'available_pins' in connection_result:
+        print(f"Available pins: {connection_result['available_pins']}")
+
+# Step 3: Connect multiple components in series
 connections = [
-    ("U1", "OUT", "R1", "1"),
+    ("U1", "1", "R1", "1"),
     ("R1", "2", "C1", "1"),
-    ("C1", "2", "GND", "1")
+    ("C1", "2", "GND", "1")  # Note: GND component must exist in schematic
 ]
 
 for from_comp, from_pin, to_comp, to_pin in connections:
-    add_wire_connection(
+    result = add_wire_connection(
         schematic_path="/path/to/project.kicad_sch",
         from_component=from_comp,
         from_pin=from_pin,
         to_component=to_comp,
         to_pin=to_pin
     )
+
+    if result.get("status") == "connected":
+        print(f"✅ Connected {from_comp}.{from_pin} to {to_comp}.{to_pin}")
+    else:
+        print(f"❌ Failed: {result.get('error')}")
 ```
 
 ### Component Layout Management
@@ -248,18 +295,19 @@ clone_component(
 
 - **`load_schematic`** - Loads and analyzes schematic files ✅
 - **`search_components`** - All search types working (reference, value, regex) ✅
+- **`get_component_pin_info`** - Enumerates available pins on components ✅
 - **`modify_component_property`** - Changes component properties and saves ✅
+- **`add_wire_connection`** - Creates wire connections between component pins ✅
 - **`clone_component`** - Duplicates components with custom reference names ✅
 - **Automatic backup creation** - Creates timestamped backups before edits ✅
 
 ### ⚠️ **Partially Working Functions:**
 
-- **`add_wire_connection`** - Component finding works, but wire creation may have limitations
 - **`move_component`** - Component movement works, coordinate system needs verification
 
 ### 📋 **Known Limitations:**
 
-1. **Pin Connection Complexity**: Wire creation between pins requires exact pin naming
+1. **Pin Positioning**: Wires connect to component centers, not exact pin positions
 2. **Coordinate System**: Position units and coordinate transformations need validation
 3. **Complex Components**: Multi-unit components may require special handling
 4. **Undo Functionality**: No built-in undo - relies on automatic backups
@@ -298,10 +346,12 @@ pip install kicad-skip
 ### Current Working Workflow
 
 1. **Analysis**: ✅ Use `load_schematic` and `search_components`
-2. **Property Editing**: ✅ Use `modify_component_property`
-3. **Component Duplication**: ✅ Use `clone_component`
-4. **File Management**: ✅ Automatic backups created
-5. **Verification**: ✅ Reload schematic to verify changes
+2. **Pin Discovery**: ✅ Use `get_component_pin_info` to identify available pins
+3. **Property Editing**: ✅ Use `modify_component_property`
+4. **Wire Connections**: ✅ Use `add_wire_connection` to connect components
+5. **Component Duplication**: ✅ Use `clone_component`
+6. **File Management**: ✅ Automatic backups created
+7. **Verification**: ✅ Reload schematic to verify changes
 
 ### Getting Help
 

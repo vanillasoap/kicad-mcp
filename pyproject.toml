@@ -46,9 +46,9 @@ dependencies = [
     "fastmcp>=2.0.0",
     "pandas>=2.0.0",
     "pyyaml>=6.0.0",
-    "defusedxml>=0.7.0",  # Secure XML parsing
-    "kicad-skip>=0.2.5",  # KiCAD schematic/PCB editing
-    "sexpdata>=0.0.3",    # S-expression parsing (kicad-skip dependency)
+    "defusedxml>=0.7.0", # Secure XML parsing
+    "kicad-skip>=0.2.5", # KiCAD schematic/PCB editing
+    "sexpdata>=0.0.3", # S-expression parsing (kicad-skip dependency)
 ]
 
 [project.urls]

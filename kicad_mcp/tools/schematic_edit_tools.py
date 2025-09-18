@@ -99,6 +99,33 @@ def extract_property_value(symbol, prop_name: str) -> str:
         return "Unknown"
 
 
+def get_component_pins(component):
+    """Get all available pins for a component.
+
+    Args:
+        component: KiCAD Skip component object
+
+    Returns:
+        Dict with pin information
+    """
+    pins_info = []
+    try:
+        if hasattr(component, 'pin'):
+            for pin in component.pin:
+                pin_info = {
+                    "number": str(pin[0]) if len(pin) > 0 else "Unknown",
+                    "uuid": safe_serialize(getattr(pin, "uuid", None))
+                }
+                pins_info.append(pin_info)
+    except Exception as e:
+        logging.warning(f"Could not enumerate pins: {e}")
+
+    return {
+        "pin_count": len(pins_info),
+        "pins": pins_info
+    }
+
+
 def register_schematic_edit_tools(mcp: FastMCP) -> None:
     """Register schematic editing tools with the MCP server.
 
@@ -277,6 +304,55 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
             return {"error": f"Search failed: {str(e)}", "exception_type": type(e).__name__}
 
     @mcp.tool()
+    def get_component_pin_info(schematic_path: str, component_reference: str) -> Dict[str, Any]:
+        """Get detailed pin information for a specific component.
+
+        Args:
+            schematic_path: Path to the .kicad_sch file
+            component_reference: Reference of the component (e.g., 'R1', 'U1')
+
+        Returns:
+            Dict with component pin information
+        """
+        logging.info(f"Getting pin info for component {component_reference} in {schematic_path}")
+
+        # Validate path
+        try:
+            validate_path(schematic_path, must_exist=True)
+        except Exception as e:
+            return {"error": f"Invalid path: {str(e)}"}
+
+        try:
+            import skip
+
+            schem = skip.Schematic(schematic_path)
+
+            # Find the component
+            component, available_refs = find_component_by_reference(schem, component_reference)
+            if not component:
+                return {
+                    "error": f"Component {component_reference} not found",
+                    "available_references": available_refs
+                }
+
+            # Get pin information
+            pins_info = get_component_pins(component)
+
+            return {
+                "status": "success",
+                "component": component_reference,
+                "lib_id": safe_serialize(getattr(component, "lib_id", None)),
+                "pin_count": pins_info["pin_count"],
+                "pins": pins_info["pins"]
+            }
+
+        except ImportError as e:
+            return {"error": f"kicad-skip library not installed. Run: pip install kicad-skip. Import error: {str(e)}"}
+        except Exception as e:
+            logging.exception(f"Failed to get pin info for {component_reference}")
+            return {"error": f"Pin info failed: {str(e)}", "exception_type": type(e).__name__}
+
+    @mcp.tool()
     def modify_component_property(
         schematic_path: str,
         component_reference: str,
@@ -433,21 +509,69 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
                     "available_references": available_refs
                 }
 
-            # Create a new wire
-            new_wire = schem.wire.new()
+            # Find the specific pins with improved error handling
+            from_pins_info = get_component_pins(from_comp)
+            to_pins_info = get_component_pins(to_comp)
 
-            # Connect the wire to the pins
+            # Find the requested pins
+            from_pin_obj = None
+            to_pin_obj = None
+
+            # Search for from_pin
+            for pin in from_comp.pin:
+                pin_number = str(pin[0]) if len(pin) > 0 else ""
+                if pin_number == from_pin:
+                    from_pin_obj = pin
+                    break
+
+            # Search for to_pin
+            for pin in to_comp.pin:
+                pin_number = str(pin[0]) if len(pin) > 0 else ""
+                if pin_number == to_pin:
+                    to_pin_obj = pin
+                    break
+
+            # Improved error messages with available pins
+            if not from_pin_obj:
+                available_pins = [pin["number"] for pin in from_pins_info["pins"]]
+                return {
+                    "error": f"Pin '{from_pin}' not found on component {from_component}",
+                    "available_pins": available_pins,
+                    "component": from_component,
+                    "lib_id": safe_serialize(getattr(from_comp, "lib_id", None))
+                }
+
+            if not to_pin_obj:
+                available_pins = [pin["number"] for pin in to_pins_info["pins"]]
+                return {
+                    "error": f"Pin '{to_pin}' not found on component {to_component}",
+                    "available_pins": available_pins,
+                    "component": to_component,
+                    "lib_id": safe_serialize(getattr(to_comp, "lib_id", None))
+                }
+
+            # Create a new wire using coordinate-based connection
             try:
-                from_pin_obj = getattr(from_comp.pin, from_pin, None)
-                to_pin_obj = getattr(to_comp.pin, to_pin, None)
+                new_wire = schem.wire.new()
 
-                if not from_pin_obj:
-                    return {"error": f"Pin {from_pin} not found on component {from_component}"}
-                if not to_pin_obj:
-                    return {"error": f"Pin {to_pin} not found on component {to_component}"}
+                # Get component positions
+                from_pos = from_comp.at
+                to_pos = to_comp.at
 
-                new_wire.start_at(from_pin_obj)
-                new_wire.end_at(to_pin_obj)
+                # Extract coordinates without triggering boolean evaluation issues
+                try:
+                    from_coords = [float(from_pos[0]), float(from_pos[1])]
+                    to_coords = [float(to_pos[0]), float(to_pos[1])]
+                except Exception as pos_error:
+                    return {
+                        "error": f"Could not extract coordinates: {str(pos_error)}",
+                        "from_position": safe_serialize(from_pos),
+                        "to_position": safe_serialize(to_pos)
+                    }
+
+                # Create wire connection using coordinates
+                new_wire.start_at(from_coords)
+                new_wire.end_at(to_coords)
 
                 # Save the schematic using kicad-skip API
                 schem.overwrite()
@@ -456,12 +580,30 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
                     "status": "connected",
                     "from": f"{from_component}.{from_pin}",
                     "to": f"{to_component}.{to_pin}",
+                    "from_coordinates": from_coords,
+                    "to_coordinates": to_coords,
                     "backup_created": backup_path is not None,
                     "backup_path": backup_path,
+                    "method": "coordinate_based_wire",
+                    "note": "Connected to component centers. Pin-specific offsets not yet implemented."
                 }
 
             except Exception as e:
-                return {"error": f"Failed to connect pins: {str(e)}"}
+                # Provide more detailed error information
+                return {
+                    "error": f"Failed to connect pins: {str(e)}",
+                    "error_type": type(e).__name__,
+                    "from_component": from_component,
+                    "from_pin": from_pin,
+                    "to_component": to_component,
+                    "to_pin": to_pin,
+                    "debug_info": {
+                        "from_pin_found": from_pin_obj is not None,
+                        "to_pin_found": to_pin_obj is not None,
+                        "available_from_pins": [pin["number"] for pin in from_pins_info["pins"]],
+                        "available_to_pins": [pin["number"] for pin in to_pins_info["pins"]]
+                    }
+                }
 
         except ImportError:
             return {"error": "kicad-skip library not installed. Run: pip install kicad-skip"}
