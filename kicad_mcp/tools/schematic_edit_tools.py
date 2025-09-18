@@ -112,10 +112,19 @@ def get_component_pins(component):
     try:
         if hasattr(component, 'pin'):
             for pin in component.pin:
-                pin_info = {
-                    "number": str(pin[0]) if len(pin) > 0 else "Unknown",
-                    "uuid": safe_serialize(getattr(pin, "uuid", None))
-                }
+                try:
+                    # Pin objects are indexable but don't have len(), just access pin[0] directly
+                    pin_number = str(pin[0]) if pin[0] is not None else "Unknown"
+                    pin_info = {
+                        "number": pin_number,
+                        "uuid": safe_serialize(getattr(pin, "uuid", None))
+                    }
+                except (IndexError, TypeError):
+                    # If pin[0] fails, try to extract from raw data or skip
+                    pin_info = {
+                        "number": "Unknown",
+                        "uuid": safe_serialize(getattr(pin, "uuid", None))
+                    }
                 pins_info.append(pin_info)
     except Exception as e:
         logging.warning(f"Could not enumerate pins: {e}")
@@ -519,20 +528,26 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
 
             # Search for from_pin
             for pin in from_comp.pin:
-                pin_number = str(pin[0]) if len(pin) > 0 else ""
-                if pin_number == from_pin:
-                    from_pin_obj = pin
-                    break
+                try:
+                    pin_number = str(pin[0]) if pin[0] is not None else ""
+                    if pin_number == from_pin:
+                        from_pin_obj = pin
+                        break
+                except (IndexError, TypeError):
+                    continue
 
             # Search for to_pin
             for pin in to_comp.pin:
-                pin_number = str(pin[0]) if len(pin) > 0 else ""
-                if pin_number == to_pin:
-                    to_pin_obj = pin
-                    break
+                try:
+                    pin_number = str(pin[0]) if pin[0] is not None else ""
+                    if pin_number == to_pin:
+                        to_pin_obj = pin
+                        break
+                except (IndexError, TypeError):
+                    continue
 
             # Improved error messages with available pins
-            if not from_pin_obj:
+            if from_pin_obj is None:
                 available_pins = [pin["number"] for pin in from_pins_info["pins"]]
                 return {
                     "error": f"Pin '{from_pin}' not found on component {from_component}",
@@ -541,7 +556,7 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
                     "lib_id": safe_serialize(getattr(from_comp, "lib_id", None))
                 }
 
-            if not to_pin_obj:
+            if to_pin_obj is None:
                 available_pins = [pin["number"] for pin in to_pins_info["pins"]]
                 return {
                     "error": f"Pin '{to_pin}' not found on component {to_component}",

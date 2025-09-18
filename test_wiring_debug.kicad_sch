@@ -52,4 +52,10 @@
 
 (xy 50.8 50.8) 
 
-(xy 101.6 76.2)) (stroke (width 0) (type default)) (uuid f0b76cab-64e2-4502-80e1-de9e9796a4f8)))
+(xy 101.6 76.2)) (stroke (width 0) (type default)) (uuid f0b76cab-64e2-4502-80e1-de9e9796a4f8)) 
+
+(wire (pts 
+
+(xy 50.8 50.8) 
+
+(xy 101.6 76.2)) (stroke (width 0) (type default)) (uuid c2e53c1e-7d1b-4dde-b583-f66477dbe419)))
