@@ -112,22 +112,52 @@ def get_component_pins(component):
     try:
         if hasattr(component, 'pin'):
             for pin in component.pin:
+                pin_number = "Unknown"
+                pin_name = None
+
                 try:
-                    # Pin objects are indexable but don't have len(), just access pin[0] directly
-                    pin_number = str(pin[0]) if pin[0] is not None else "Unknown"
-                    pin_info = {
-                        "number": pin_number,
-                        "uuid": safe_serialize(getattr(pin, "uuid", None))
-                    }
+                    # Method 1: Direct index access (most common)
+                    if pin[0] is not None:
+                        pin_number = str(pin[0])
                 except (IndexError, TypeError):
-                    # If pin[0] fails, try to extract from raw data or skip
-                    pin_info = {
-                        "number": "Unknown",
-                        "uuid": safe_serialize(getattr(pin, "uuid", None))
-                    }
+                    # Method 2: Try accessing from raw data
+                    try:
+                        raw_data = getattr(pin, 'raw', None)
+                        if raw_data and len(raw_data) > 1:
+                            pin_number = str(raw_data[1])
+                    except (IndexError, TypeError, AttributeError):
+                        # Method 3: Try accessing from children
+                        try:
+                            children = getattr(pin, 'children', None)
+                            if children and len(children) > 0:
+                                pin_number = str(children[0])
+                        except (IndexError, TypeError, AttributeError):
+                            pass
+
+                # Try to get pin name if available (for named pins like ESP32 modules)
+                try:
+                    # Some pins might have names in addition to numbers
+                    if hasattr(pin, 'name') and getattr(pin, 'name', None):
+                        pin_name = str(getattr(pin, 'name'))
+                    elif len(pin) > 2:  # Check if there's a name field
+                        potential_name = pin[2] if pin[2] != getattr(pin, 'uuid', None) else None
+                        if potential_name:
+                            pin_name = str(potential_name)
+                except (IndexError, TypeError, AttributeError):
+                    pass
+
+                # Handle edge cases where pin number might be empty or whitespace
+                if not pin_number or pin_number.strip() == "":
+                    pin_number = "Unknown"
+
+                pin_info = {
+                    "number": pin_number.strip(),
+                    "name": pin_name.strip() if pin_name else None,
+                    "uuid": safe_serialize(getattr(pin, "uuid", None))
+                }
                 pins_info.append(pin_info)
     except Exception as e:
-        logging.warning(f"Could not enumerate pins: {e}")
+        logging.warning(f"Could not enumerate pins for component: {e}")
 
     return {
         "pin_count": len(pins_info),
@@ -526,21 +556,43 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
             from_pin_obj = None
             to_pin_obj = None
 
-            # Search for from_pin
+            # Search for from_pin - check both number and name
             for pin in from_comp.pin:
+                pin_matches = False
                 try:
+                    # Check pin number
                     pin_number = str(pin[0]) if pin[0] is not None else ""
                     if pin_number == from_pin:
+                        pin_matches = True
+
+                    # Check pin name if available
+                    if not pin_matches and len(pin) > 2:
+                        potential_name = pin[2] if pin[2] != getattr(pin, 'uuid', None) else None
+                        if potential_name and str(potential_name) == from_pin:
+                            pin_matches = True
+
+                    if pin_matches:
                         from_pin_obj = pin
                         break
                 except (IndexError, TypeError):
                     continue
 
-            # Search for to_pin
+            # Search for to_pin - check both number and name
             for pin in to_comp.pin:
+                pin_matches = False
                 try:
+                    # Check pin number
                     pin_number = str(pin[0]) if pin[0] is not None else ""
                     if pin_number == to_pin:
+                        pin_matches = True
+
+                    # Check pin name if available
+                    if not pin_matches and len(pin) > 2:
+                        potential_name = pin[2] if pin[2] != getattr(pin, 'uuid', None) else None
+                        if potential_name and str(potential_name) == to_pin:
+                            pin_matches = True
+
+                    if pin_matches:
                         to_pin_obj = pin
                         break
                 except (IndexError, TypeError):
@@ -548,7 +600,14 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
 
             # Improved error messages with available pins
             if from_pin_obj is None:
-                available_pins = [pin["number"] for pin in from_pins_info["pins"]]
+                # Include both numbers and names in available pins list
+                available_pins = []
+                for pin in from_pins_info["pins"]:
+                    pin_id = pin["number"]
+                    if pin.get("name") and pin["name"] != pin["number"]:
+                        pin_id = f"{pin['number']} ({pin['name']})"
+                    available_pins.append(pin_id)
+
                 return {
                     "error": f"Pin '{from_pin}' not found on component {from_component}",
                     "available_pins": available_pins,
@@ -557,7 +616,14 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
                 }
 
             if to_pin_obj is None:
-                available_pins = [pin["number"] for pin in to_pins_info["pins"]]
+                # Include both numbers and names in available pins list
+                available_pins = []
+                for pin in to_pins_info["pins"]:
+                    pin_id = pin["number"]
+                    if pin.get("name") and pin["name"] != pin["number"]:
+                        pin_id = f"{pin['number']} ({pin['name']})"
+                    available_pins.append(pin_id)
+
                 return {
                     "error": f"Pin '{to_pin}' not found on component {to_component}",
                     "available_pins": available_pins,
