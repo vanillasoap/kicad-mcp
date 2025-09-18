@@ -1,0 +1,31 @@
+(kicad_sch (version 20211123) (generator eeschema) (uuid 12345678-1234-1234-1234-123456789abc) (paper "A4") (title_block (title "Test Clone Fix") (date "2025-01-18") (rev "1")) 
+
+(symbol (lib_id "Device:R") (at 50.8 50.8 0) (unit 1) (uuid abcd1234-1234-1234-1234-123456789def) 
+
+(property "Reference" "R1" (id 0) (at 52.578 49.6316 0) (effects (font (size 1.27 1.27)) (justify left))) 
+
+(property "Value" "10k" (id 1) (at 52.578 51.9366 0) (effects (font (size 1.27 1.27)) (justify left))) 
+
+(property "Footprint" "" (id 2) (at 49.022 50.8 90) (effects (font (size 1.27 1.27)) hide)) 
+
+(property "Datasheet" "~" (id 3) (at 50.8 50.8 0) (effects (font (size 1.27 1.27)) hide)) (pin "1" (uuid 1111aaaa-1111-1111-1111-111111111111)) (pin "2" (uuid 2222bbbb-2222-2222-2222-222222222222))) 
+
+(symbol (lib_id "Device:R") (at 10.0 0.0 0) (unit 1) (uuid f7e8455e-713e-401e-a6f6-782f439d7513) 
+
+(property "Reference" "R10" (id 0) (at 11.778 -1.1684 0) (effects (font (size 1.27 1.27)) (justify left))) 
+
+(property "Value" "10k" (id 1) (at 11.778 1.1366 0) (effects (font (size 1.27 1.27)) (justify left))) 
+
+(property "Footprint" "" (id 2) (at 8.222 0.0 90) (effects (font (size 1.27 1.27)) hide)) 
+
+(property "Datasheet" "~" (id 3) (at 10.0 0.0 0) (effects (font (size 1.27 1.27)) hide)) (pin "1" (uuid 3732cecd-a755-48c1-933e-7af8cf1a4a57)) (pin "2" (uuid db4de614-b718-40cd-be12-978f761be245))) 
+
+(symbol (lib_id "Device:R") (at 10.0 0.0 0) (unit 1) (uuid b7ba5088-0780-4781-90e1-24d77abe66ad) 
+
+(property "Reference" "R_CUSTOM" (id 0) (at 11.778 -1.1684 0) (effects (font (size 1.27 1.27)) (justify left))) 
+
+(property "Value" "10k" (id 1) (at 11.778 1.1366 0) (effects (font (size 1.27 1.27)) (justify left))) 
+
+(property "Footprint" "" (id 2) (at 8.222 0.0 90) (effects (font (size 1.27 1.27)) hide)) 
+
+(property "Datasheet" "~" (id 3) (at 10.0 0.0 0) (effects (font (size 1.27 1.27)) hide)) (pin "1" (uuid 1dfa5700-67c3-48a9-837d-3b08d13b1f6f)) (pin "2" (uuid 2de3e991-54f1-4b3d-a3db-32b414c46712))))

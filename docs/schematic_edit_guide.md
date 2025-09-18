@@ -249,7 +249,7 @@ clone_component(
 - **`load_schematic`** - Loads and analyzes schematic files ✅
 - **`search_components`** - All search types working (reference, value, regex) ✅
 - **`modify_component_property`** - Changes component properties and saves ✅
-- **`clone_component`** - Duplicates components with new references ✅
+- **`clone_component`** - Duplicates components with custom reference names ✅
 - **Automatic backup creation** - Creates timestamped backups before edits ✅
 
 ### ⚠️ **Partially Working Functions:**
@@ -289,6 +289,11 @@ pip install kicad-skip
 **Property modification issues** - FIXED ✅
 - Proper property access using KiCAD Skip API
 - Detailed error reporting for debugging
+
+**Component cloning reference names** - FIXED ✅
+- Clone components now use the exact reference name specified
+- No more auto-generated names like "R1_" or "RCC1_"
+- Supports all reference naming patterns (R10, R_CUSTOM, etc.)
 
 ### Current Working Workflow
 

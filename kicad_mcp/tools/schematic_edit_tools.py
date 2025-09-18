@@ -605,8 +605,11 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
             try:
                 new_component = source_component.clone()
 
-                # Update the reference
-                if hasattr(new_component, "reference"):
+                # Update the reference using the proper property API
+                if hasattr(new_component, "Reference") and hasattr(new_component.Reference, "value"):
+                    new_component.Reference.value = new_reference
+                elif hasattr(new_component, "reference"):
+                    # Fallback for different API versions
                     new_component.reference = new_reference
 
                 # Move to new position

@@ -1,0 +1,31 @@
+(kicad_sch (version 20211123) (generator eeschema)
+
+  (uuid 12345678-1234-1234-1234-123456789abc)
+
+  (paper "A4")
+
+  (title_block
+    (title "Test Clone Fix")
+    (date "2025-01-18")
+    (rev "1")
+  )
+
+  (symbol (lib_id "Device:R") (at 50.8 50.8 0) (unit 1)
+    (uuid abcd1234-1234-1234-1234-123456789def)
+    (property "Reference" "R1" (id 0) (at 52.578 49.6316 0)
+      (effects (font (size 1.27 1.27)) (justify left))
+    )
+    (property "Value" "10k" (id 1) (at 52.578 51.9366 0)
+      (effects (font (size 1.27 1.27)) (justify left))
+    )
+    (property "Footprint" "" (id 2) (at 49.022 50.8 90)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (property "Datasheet" "~" (id 3) (at 50.8 50.8 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (pin "1" (uuid 1111aaaa-1111-1111-1111-111111111111))
+    (pin "2" (uuid 2222bbbb-2222-2222-2222-222222222222))
+  )
+
+)
