@@ -29,6 +29,89 @@ def safe_serialize(obj) -> str:
         return "Unknown"
 
 
+def _estimate_ic_pin_coordinates(component, pin_identifier, center_coords, comp_name):
+    """Estimate pin coordinates for IC packages when symbol data unavailable.
+
+    Args:
+        component: Component object
+        pin_identifier: Pin number/identifier
+        center_coords: Component center coordinates [x, y]
+        comp_name: Component reference name
+
+    Returns:
+        Estimated pin coordinates [x, y]
+    """
+    try:
+        pin_num = int(pin_identifier)
+        center_x, center_y = center_coords
+
+        # Get component library ID to determine package type
+        lib_id = getattr(component, 'lib_id', None)
+        lib_id_str = str(lib_id) if lib_id else ""
+
+        # TAS5830 - HTSSOP-32 package
+        if 'TAS5830' in lib_id_str or comp_name.upper().startswith('U'):
+            # Standard HTSSOP-32: 32 pins, 8 per side, counter-clockwise from pin 1
+            package_width = 6.5   # mm
+            package_height = 6.5  # mm
+            pin_spacing = 0.65    # mm
+            pin_extension = 1.2   # mm beyond package edge
+
+            if pin_num <= 8:
+                # Bottom side (pins 1-8), left to right
+                x = center_x - (package_width/2) + (pin_num - 1) * pin_spacing
+                y = center_y - (package_height/2) - pin_extension
+            elif pin_num <= 16:
+                # Right side (pins 9-16), bottom to top
+                x = center_x + (package_width/2) + pin_extension
+                y = center_y - (package_height/2) + (pin_num - 9) * pin_spacing
+            elif pin_num <= 24:
+                # Top side (pins 17-24), right to left
+                x = center_x + (package_width/2) - (pin_num - 17) * pin_spacing
+                y = center_y + (package_height/2) + pin_extension
+            else:
+                # Left side (pins 25-32), top to bottom
+                x = center_x - (package_width/2) - pin_extension
+                y = center_y + (package_height/2) - (pin_num - 25) * pin_spacing
+
+            return [round(x, 2), round(y, 2)]
+
+        # ESP32 modules - already handled by SymbolPin objects, but fallback for ParsedValue
+        elif 'ESP32' in lib_id_str or 'Espressif' in lib_id_str:
+            # Large module, approximate pin positions
+            module_width = 25.4   # mm
+            module_height = 17.8  # mm
+            pin_spacing = 2.54    # mm
+
+            # Simplified ESP32 pin layout estimation
+            if pin_num <= 19:
+                # Left side pins
+                x = center_x - (module_width/2) - 2.0
+                y = center_y - (module_height/2) + (pin_num - 1) * pin_spacing
+            else:
+                # Right side pins
+                x = center_x + (module_width/2) + 2.0
+                y = center_y - (module_height/2) + (pin_num - 20) * pin_spacing
+
+            return [round(x, 2), round(y, 2)]
+
+        # Resistors and simple 2-pin components
+        elif any(prefix in comp_name for prefix in ['R_', 'R', 'C_', 'C', 'L_', 'L']):
+            # Simple 2-pin components - horizontal layout
+            pin_spacing = 2.54  # mm
+            if pin_identifier in ['1']:
+                return [center_x - pin_spacing/2, center_y]
+            elif pin_identifier in ['2']:
+                return [center_x + pin_spacing/2, center_y]
+
+        # Default: return center coordinates (no estimation available)
+        return center_coords
+
+    except Exception as e:
+        logging.debug(f"Pin estimation failed for {comp_name}.{pin_identifier}: {e}")
+        return center_coords
+
+
 def find_component_by_reference(schem, component_reference: str):
     """Find a component by its reference designator with fallback methods.
 
@@ -735,14 +818,20 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
                                 except Exception:
                                     continue
 
-                        # Fallback to component center
+                        # Fallback to geometric pin coordinate estimation for ParsedValue pins
                         comp_pos = component.at
                         if hasattr(comp_pos, 'value'):
                             center_coords = comp_pos.value[:2]
                         else:
                             center_coords = [float(comp_pos[0]), float(comp_pos[1])]
 
-                        logging.warning(f"Using component center as fallback for {comp_name}.{pin_identifier}: {center_coords}")
+                        # Try geometric estimation for IC packages
+                        estimated_coords = _estimate_ic_pin_coordinates(component, pin_identifier, center_coords, comp_name)
+                        if estimated_coords != center_coords:
+                            logging.info(f"Using geometric estimation for {comp_name}.{pin_identifier}: {estimated_coords}")
+                            return estimated_coords
+
+                        logging.warning(f"Using component center as final fallback for {comp_name}.{pin_identifier}: {center_coords}")
                         return center_coords
 
                     except Exception as e:
