@@ -116,35 +116,43 @@ def get_component_pins(component):
                 pin_name = None
 
                 try:
-                    # Method 1: Direct index access (most common)
-                    if pin[0] is not None:
-                        pin_number = str(pin[0])
-                except (IndexError, TypeError):
-                    # Method 2: Try accessing from raw data
-                    try:
-                        raw_data = getattr(pin, 'raw', None)
-                        if raw_data and len(raw_data) > 1:
-                            pin_number = str(raw_data[1])
-                    except (IndexError, TypeError, AttributeError):
-                        # Method 3: Try accessing from children
+                    # Method 1: SymbolPin objects (newer format)
+                    if hasattr(pin, 'number') and hasattr(pin, 'name'):
+                        pin_number = str(getattr(pin, 'number'))
+                        pin_name_attr = getattr(pin, 'name', None)
+                        if pin_name_attr and str(pin_name_attr).strip() != "~":
+                            pin_name = str(pin_name_attr)
+
+                    # Method 2: ParsedValue objects (older format) - Direct index access
+                    elif hasattr(pin, '__getitem__'):
                         try:
-                            children = getattr(pin, 'children', None)
-                            if children and len(children) > 0:
-                                pin_number = str(children[0])
-                        except (IndexError, TypeError, AttributeError):
+                            if pin[0] is not None:
+                                pin_number = str(pin[0])
+                                # Try to get name from pin[2] if available
+                                if len(pin) > 2:
+                                    potential_name = pin[2] if pin[2] != getattr(pin, 'uuid', None) else None
+                                    if potential_name and str(potential_name).strip() != "~":
+                                        pin_name = str(potential_name)
+                        except (IndexError, TypeError):
                             pass
 
-                # Try to get pin name if available (for named pins like ESP32 modules)
-                try:
-                    # Some pins might have names in addition to numbers
-                    if hasattr(pin, 'name') and getattr(pin, 'name', None):
-                        pin_name = str(getattr(pin, 'name'))
-                    elif len(pin) > 2:  # Check if there's a name field
-                        potential_name = pin[2] if pin[2] != getattr(pin, 'uuid', None) else None
-                        if potential_name:
-                            pin_name = str(potential_name)
-                except (IndexError, TypeError, AttributeError):
-                    pass
+                    # Method 3: Fallback - Try accessing from raw data
+                    if pin_number == "Unknown":
+                        try:
+                            raw_data = getattr(pin, 'raw', None)
+                            if raw_data and len(raw_data) > 1:
+                                pin_number = str(raw_data[1])
+                        except (IndexError, TypeError, AttributeError):
+                            # Method 4: Try accessing from children
+                            try:
+                                children = getattr(pin, 'children', None)
+                                if children and len(children) > 0:
+                                    pin_number = str(children[0])
+                            except (IndexError, TypeError, AttributeError):
+                                pass
+
+                except Exception as e:
+                    logging.debug(f"Error extracting pin data: {e}")
 
                 # Handle edge cases where pin number might be empty or whitespace
                 if not pin_number or pin_number.strip() == "":
@@ -560,8 +568,26 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
             for pin in from_comp.pin:
                 pin_matches = False
                 try:
-                    # Get the raw pin number from the pin object
-                    pin_number = str(pin[0]) if pin[0] is not None else ""
+                    pin_number = ""
+                    pin_name = ""
+
+                    # Extract pin number and name based on pin object type
+                    if hasattr(pin, 'number') and hasattr(pin, 'name'):
+                        # SymbolPin objects (newer format)
+                        pin_number = str(getattr(pin, 'number'))
+                        pin_name_attr = getattr(pin, 'name', None)
+                        if pin_name_attr:
+                            pin_name = str(pin_name_attr)
+                    elif hasattr(pin, '__getitem__'):
+                        # ParsedValue objects (older format)
+                        try:
+                            pin_number = str(pin[0]) if pin[0] is not None else ""
+                            if len(pin) > 2:
+                                potential_name = pin[2] if pin[2] != getattr(pin, 'uuid', None) else None
+                                if potential_name:
+                                    pin_name = str(potential_name)
+                        except (IndexError, TypeError):
+                            pass
 
                     # Method 1: Direct exact match with pin number
                     if pin_number == from_pin:
@@ -576,16 +602,13 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
                             pin_matches = True
 
                     # Method 3: Check if user provided a GPIO name that matches the description
-                    if not pin_matches and len(pin) > 2:
-                        potential_name = pin[2] if pin[2] != getattr(pin, 'uuid', None) else None
-                        if potential_name:
-                            name_str = str(potential_name)
-                            # Direct name match
-                            if name_str == from_pin:
-                                pin_matches = True
-                            # Check if the requested pin is part of the GPIO name (e.g., "GPIO21" from "GPIO21/ADC")
-                            elif "/" in name_str and from_pin in name_str.split("/"):
-                                pin_matches = True
+                    if not pin_matches and pin_name:
+                        # Direct name match
+                        if pin_name == from_pin:
+                            pin_matches = True
+                        # Check if the requested pin is part of the GPIO name (e.g., "GPIO21" from "GPIO21/ADC")
+                        elif "/" in pin_name and from_pin in pin_name.split("/"):
+                            pin_matches = True
 
                     if pin_matches:
                         from_pin_obj = pin
@@ -597,8 +620,26 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
             for pin in to_comp.pin:
                 pin_matches = False
                 try:
-                    # Get the raw pin number from the pin object
-                    pin_number = str(pin[0]) if pin[0] is not None else ""
+                    pin_number = ""
+                    pin_name = ""
+
+                    # Extract pin number and name based on pin object type
+                    if hasattr(pin, 'number') and hasattr(pin, 'name'):
+                        # SymbolPin objects (newer format)
+                        pin_number = str(getattr(pin, 'number'))
+                        pin_name_attr = getattr(pin, 'name', None)
+                        if pin_name_attr:
+                            pin_name = str(pin_name_attr)
+                    elif hasattr(pin, '__getitem__'):
+                        # ParsedValue objects (older format)
+                        try:
+                            pin_number = str(pin[0]) if pin[0] is not None else ""
+                            if len(pin) > 2:
+                                potential_name = pin[2] if pin[2] != getattr(pin, 'uuid', None) else None
+                                if potential_name:
+                                    pin_name = str(potential_name)
+                        except (IndexError, TypeError):
+                            pass
 
                     # Method 1: Direct exact match with pin number
                     if pin_number == to_pin:
@@ -613,16 +654,13 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
                             pin_matches = True
 
                     # Method 3: Check if user provided a GPIO name that matches the description
-                    if not pin_matches and len(pin) > 2:
-                        potential_name = pin[2] if pin[2] != getattr(pin, 'uuid', None) else None
-                        if potential_name:
-                            name_str = str(potential_name)
-                            # Direct name match
-                            if name_str == to_pin:
-                                pin_matches = True
-                            # Check if the requested pin is part of the GPIO name (e.g., "GPIO21" from "GPIO21/ADC")
-                            elif "/" in name_str and to_pin in name_str.split("/"):
-                                pin_matches = True
+                    if not pin_matches and pin_name:
+                        # Direct name match
+                        if pin_name == to_pin:
+                            pin_matches = True
+                        # Check if the requested pin is part of the GPIO name (e.g., "GPIO21" from "GPIO21/ADC")
+                        elif "/" in pin_name and to_pin in pin_name.split("/"):
+                            pin_matches = True
 
                     if pin_matches:
                         to_pin_obj = pin
