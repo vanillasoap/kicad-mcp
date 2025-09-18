@@ -29,6 +29,43 @@ def safe_serialize(obj) -> str:
         return "Unknown"
 
 
+def find_component_by_reference(schem, component_reference: str):
+    """Find a component by its reference designator with fallback methods.
+
+    Args:
+        schem: KiCAD Skip schematic object
+        component_reference: Reference designator (e.g., 'R1', 'U3')
+
+    Returns:
+        tuple: (component_object, available_references_list)
+    """
+    # Get all available references for debugging
+    available_refs = []
+    try:
+        for symbol in schem.symbol:
+            ref = extract_property_value(symbol, "Reference")
+            if ref != "Unknown":
+                available_refs.append(ref)
+    except Exception as e:
+        logging.warning(f"Could not enumerate available references: {e}")
+
+    logging.info(f"Looking for component {component_reference}. Available refs: {available_refs}")
+
+    # Try direct attribute access first (KiCAD Skip provides this)
+    component = getattr(schem.symbol, component_reference, None)
+
+    # If direct access failed, try iteration
+    if not component:
+        logging.warning(f"Direct access failed for {component_reference}, trying iteration")
+        for symbol in schem.symbol:
+            ref = extract_property_value(symbol, "Reference")
+            if ref == component_reference:
+                component = symbol
+                break
+
+    return component, available_refs
+
+
 def extract_property_value(symbol, prop_name: str) -> str:
     """Extract a property value from a KiCAD Skip symbol.
 
@@ -283,11 +320,16 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
 
             schem = skip.Schematic(schematic_path)
 
-            # Find the component
+            # Find the component using helper function
             try:
-                component = getattr(schem.symbol, component_reference, None)
+                component, available_refs = find_component_by_reference(schem, component_reference)
+
                 if not component:
-                    return {"error": f"Component {component_reference} not found"}
+                    return {
+                        "error": f"Component {component_reference} not found",
+                        "available_references": available_refs,
+                        "searched_reference": component_reference
+                    }
 
                 # Get the old value for comparison
                 old_value = "Not set"
@@ -311,8 +353,8 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
                         "error": f"Property {property_name} not found on component {component_reference}"
                     }
 
-                # Save the schematic
-                schem.save()
+                # Save the schematic using kicad-skip API
+                schem.overwrite()
 
                 return {
                     "status": "modified",
@@ -376,14 +418,20 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
 
             schem = skip.Schematic(schematic_path)
 
-            # Find the components
-            from_comp = getattr(schem.symbol, from_component, None)
-            to_comp = getattr(schem.symbol, to_component, None)
+            # Find the components using helper function
+            from_comp, available_refs = find_component_by_reference(schem, from_component)
+            to_comp, _ = find_component_by_reference(schem, to_component)
 
             if not from_comp:
-                return {"error": f"Source component {from_component} not found"}
+                return {
+                    "error": f"Source component {from_component} not found",
+                    "available_references": available_refs
+                }
             if not to_comp:
-                return {"error": f"Target component {to_component} not found"}
+                return {
+                    "error": f"Target component {to_component} not found",
+                    "available_references": available_refs
+                }
 
             # Create a new wire
             new_wire = schem.wire.new()
@@ -401,8 +449,8 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
                 new_wire.start_at(from_pin_obj)
                 new_wire.end_at(to_pin_obj)
 
-                # Save the schematic
-                schem.save()
+                # Save the schematic using kicad-skip API
+                schem.overwrite()
 
                 return {
                     "status": "connected",
@@ -462,10 +510,13 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
 
             schem = skip.Schematic(schematic_path)
 
-            # Find the component
-            component = getattr(schem.symbol, component_reference, None)
+            # Find the component using helper function
+            component, available_refs = find_component_by_reference(schem, component_reference)
             if not component:
-                return {"error": f"Component {component_reference} not found"}
+                return {
+                    "error": f"Component {component_reference} not found",
+                    "available_references": available_refs
+                }
 
             # Get old position for reference
             old_position = getattr(component, "position", "Unknown")
@@ -474,8 +525,8 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
             try:
                 component.move(x_offset, y_offset)
 
-                # Save the schematic
-                schem.save()
+                # Save the schematic using kicad-skip API
+                schem.overwrite()
 
                 # Get new position
                 new_position = getattr(component, "position", "Unknown")
@@ -542,10 +593,13 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
 
             schem = skip.Schematic(schematic_path)
 
-            # Find the source component
-            source_component = getattr(schem.symbol, source_reference, None)
+            # Find the source component using helper function
+            source_component, available_refs = find_component_by_reference(schem, source_reference)
             if not source_component:
-                return {"error": f"Source component {source_reference} not found"}
+                return {
+                    "error": f"Source component {source_reference} not found",
+                    "available_references": available_refs
+                }
 
             # Clone the component
             try:
@@ -558,8 +612,8 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
                 # Move to new position
                 new_component.move(x_offset, y_offset)
 
-                # Save the schematic
-                schem.save()
+                # Save the schematic using kicad-skip API
+                schem.overwrite()
 
                 return {
                     "status": "cloned",

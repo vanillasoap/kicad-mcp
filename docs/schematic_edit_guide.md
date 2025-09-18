@@ -242,6 +242,28 @@ clone_component(
 - **Use absolute paths**: Avoid relative paths in schematic_path parameters
 - **Handle errors gracefully**: Check return status of all operations
 
+## Current Status & Limitations
+
+### ✅ **Fully Working Functions:**
+
+- **`load_schematic`** - Loads and analyzes schematic files ✅
+- **`search_components`** - All search types working (reference, value, regex) ✅
+- **`modify_component_property`** - Changes component properties and saves ✅
+- **`clone_component`** - Duplicates components with new references ✅
+- **Automatic backup creation** - Creates timestamped backups before edits ✅
+
+### ⚠️ **Partially Working Functions:**
+
+- **`add_wire_connection`** - Component finding works, but wire creation may have limitations
+- **`move_component`** - Component movement works, coordinate system needs verification
+
+### 📋 **Known Limitations:**
+
+1. **Pin Connection Complexity**: Wire creation between pins requires exact pin naming
+2. **Coordinate System**: Position units and coordinate transformations need validation
+3. **Complex Components**: Multi-unit components may require special handling
+4. **Undo Functionality**: No built-in undo - relies on automatic backups
+
 ## Troubleshooting
 
 ### Common Issues
@@ -251,25 +273,30 @@ clone_component(
 pip install kicad-skip
 ```
 
-**"Component not found"**
-- Use `search_components` to find correct references
-- Check for case sensitivity in component references
-- Verify component exists in the loaded schematic
+**"Component not found"** - FIXED ✅
+- The system now provides detailed debugging information
+- Shows all available component references when component not found
+- Uses fallback search methods (direct access + iteration)
 
-**"Property not found"**
-- Not all components have all properties
-- Use `search_components` to examine existing properties
-- Common properties: Value, MPN, Footprint, Datasheet
+**"'Schematic' object has no attribute 'save'"** - FIXED ✅
+- Now uses correct `schematic.overwrite()` API method
+- Proper file saving and backup creation implemented
 
-**"Failed to connect pins"**
-- Verify both components exist
-- Check pin names match the component symbol
-- Pin naming conventions vary by component type
+**"Unable to serialize unknown type"** - FIXED ✅
+- All KiCAD Skip objects now properly serialized to JSON
+- Safe conversion of complex objects to strings
 
-**File access issues**
-- Ensure schematic file path is correct and accessible
-- Check read/write permissions
-- Close KiCad if it has the file open
+**Property modification issues** - FIXED ✅
+- Proper property access using KiCAD Skip API
+- Detailed error reporting for debugging
+
+### Current Working Workflow
+
+1. **Analysis**: ✅ Use `load_schematic` and `search_components`
+2. **Property Editing**: ✅ Use `modify_component_property`
+3. **Component Duplication**: ✅ Use `clone_component`
+4. **File Management**: ✅ Automatic backups created
+5. **Verification**: ✅ Reload schematic to verify changes
 
 ### Getting Help
 
