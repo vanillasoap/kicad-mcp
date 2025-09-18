@@ -11,6 +11,57 @@ from kicad_mcp.utils.path_validator import validate_path
 from kicad_mcp.utils.file_utils import backup_file
 
 
+def safe_serialize(obj) -> str:
+    """Safely convert KiCAD Skip objects to serializable strings.
+
+    Args:
+        obj: Object to convert
+
+    Returns:
+        String representation of the object
+    """
+    if obj is None:
+        return "None"
+    try:
+        # Try to convert to string, handling special cases
+        return str(obj)
+    except Exception:
+        return "Unknown"
+
+
+def extract_property_value(symbol, prop_name: str) -> str:
+    """Extract a property value from a KiCAD Skip symbol.
+
+    Args:
+        symbol: KiCAD Skip symbol object
+        prop_name: Name of the property to extract
+
+    Returns:
+        String value of the property
+    """
+    try:
+        # Access the property directly by name (KiCAD Skip provides direct access)
+        if hasattr(symbol, prop_name):
+            prop = getattr(symbol, prop_name)
+            if hasattr(prop, 'value'):
+                return safe_serialize(prop.value)
+            else:
+                return safe_serialize(prop)
+
+        # Try lowercase version
+        if hasattr(symbol, prop_name.lower()):
+            prop = getattr(symbol, prop_name.lower())
+            if hasattr(prop, 'value'):
+                return safe_serialize(prop.value)
+            else:
+                return safe_serialize(prop)
+
+        return "Unknown"
+    except Exception as e:
+        logging.debug(f"Failed to extract property {prop_name}: {e}")
+        return "Unknown"
+
+
 def register_schematic_edit_tools(mcp: FastMCP) -> None:
     """Register schematic editing tools with the MCP server.
 
@@ -48,10 +99,13 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
             symbols_info = []
             try:
                 for symbol in schem.symbol:
+                    # Convert KiCAD Skip objects to serializable data using improved extraction
                     symbol_info = {
-                        "reference": getattr(symbol, "reference", "Unknown"),
-                        "value": getattr(symbol, "value", "Unknown"),
-                        "position": getattr(symbol, "position", "Unknown"),
+                        "reference": extract_property_value(symbol, "Reference"),
+                        "value": extract_property_value(symbol, "Value"),
+                        "lib_id": safe_serialize(getattr(symbol, "lib_id", None)),
+                        "uuid": safe_serialize(getattr(symbol, "uuid", None)),
+                        "position": safe_serialize(getattr(symbol, "at", None)),
                     }
                     symbols_info.append(symbol_info)
             except Exception as e:
@@ -78,10 +132,11 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
                 ],
             }
 
-        except ImportError:
-            return {"error": "kicad-skip library not installed. Run: pip install kicad-skip"}
+        except ImportError as e:
+            return {"error": f"kicad-skip library not installed. Run: pip install kicad-skip. Import error: {str(e)}"}
         except Exception as e:
-            return {"error": f"Failed to load schematic: {str(e)}"}
+            logging.exception(f"Failed to load schematic {schematic_path}")
+            return {"error": f"Failed to load schematic: {str(e)}", "exception_type": type(e).__name__}
 
     @mcp.tool()
     def search_components(
@@ -120,9 +175,10 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
                         for symbol in schem.symbol.reference_startswith(search_prefix):
                             matches.append(
                                 {
-                                    "reference": getattr(symbol, "reference", "Unknown"),
-                                    "value": getattr(symbol, "value", "Unknown"),
-                                    "position": getattr(symbol, "position", "Unknown"),
+                                    "reference": extract_property_value(symbol, "Reference"),
+                                    "value": extract_property_value(symbol, "Value"),
+                                    "lib_id": safe_serialize(getattr(symbol, "lib_id", None)),
+                                    "position": safe_serialize(getattr(symbol, "at", None)),
                                 }
                             )
                     else:
@@ -131,9 +187,10 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
                         if symbol:
                             matches.append(
                                 {
-                                    "reference": getattr(symbol, "reference", "Unknown"),
-                                    "value": getattr(symbol, "value", "Unknown"),
-                                    "position": getattr(symbol, "position", "Unknown"),
+                                    "reference": extract_property_value(symbol, "Reference"),
+                                    "value": extract_property_value(symbol, "Value"),
+                                    "lib_id": safe_serialize(getattr(symbol, "lib_id", None)),
+                                    "position": safe_serialize(getattr(symbol, "at", None)),
                                 }
                             )
                 except Exception as e:
@@ -144,9 +201,10 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
                     for symbol in schem.symbol.reference_matches(search_value):
                         matches.append(
                             {
-                                "reference": getattr(symbol, "reference", "Unknown"),
-                                "value": getattr(symbol, "value", "Unknown"),
-                                "position": getattr(symbol, "position", "Unknown"),
+                                "reference": extract_property_value(symbol, "Reference"),
+                                "value": extract_property_value(symbol, "Value"),
+                                "lib_id": safe_serialize(getattr(symbol, "lib_id", None)),
+                                "position": safe_serialize(getattr(symbol, "at", None)),
                             }
                         )
                 except Exception as e:
@@ -155,12 +213,14 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
             elif search_type == "value":
                 try:
                     for symbol in schem.symbol:
-                        if hasattr(symbol, "value") and str(symbol.value) == search_value:
+                        symbol_value = extract_property_value(symbol, "Value")
+                        if symbol_value == search_value:
                             matches.append(
                                 {
-                                    "reference": getattr(symbol, "reference", "Unknown"),
-                                    "value": getattr(symbol, "value", "Unknown"),
-                                    "position": getattr(symbol, "position", "Unknown"),
+                                    "reference": extract_property_value(symbol, "Reference"),
+                                    "value": symbol_value,
+                                    "lib_id": safe_serialize(getattr(symbol, "lib_id", None)),
+                                    "position": safe_serialize(getattr(symbol, "at", None)),
                                 }
                             )
                 except Exception as e:
@@ -173,10 +233,11 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
                 "matches": matches,
             }
 
-        except ImportError:
-            return {"error": "kicad-skip library not installed. Run: pip install kicad-skip"}
+        except ImportError as e:
+            return {"error": f"kicad-skip library not installed. Run: pip install kicad-skip. Import error: {str(e)}"}
         except Exception as e:
-            return {"error": f"Search failed: {str(e)}"}
+            logging.exception(f"Search failed for {search_type}={search_value} in {schematic_path}")
+            return {"error": f"Search failed: {str(e)}", "exception_type": type(e).__name__}
 
     @mcp.tool()
     def modify_component_property(
@@ -234,7 +295,7 @@ def register_schematic_edit_tools(mcp: FastMCP) -> None:
                     if hasattr(component, "property") and hasattr(
                         component.property, property_name
                     ):
-                        old_value = getattr(component.property, property_name).value
+                        old_value = safe_serialize(getattr(component.property, property_name).value)
                 except:
                     pass
 
